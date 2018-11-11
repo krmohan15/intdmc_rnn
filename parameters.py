@@ -29,7 +29,7 @@ par = {
     'num_fix_tuned'         : 0,
     'num_rule_tuned'        : 0,
     'n_hidden'              : 100,
-    'n_output'              : 4,
+    'n_output'              : 3,
     'num_spatial_tuned'     : 100,
     'num_color_tuned'       : 10,
     'size_x'                : 10,
@@ -65,7 +65,7 @@ par = {
 
     # Training specs
     'batch_train_size'      : 256,
-    'num_iterations'        : 2000,
+    'num_iterations'        : 4000,
     'iters_between_outputs' : 10,
 
     # Task specs
@@ -142,12 +142,12 @@ def update_trial_params():
     par['num_rule_tuned'] = 0
 
     if par['trial_type'] == 'DMS' or par['trial_type'] == 'DMC':
-        par['num_rule_tuned'] = 12
+        par['num_rule_tuned'] = 0
         par['rotation_match'] = 0
         par['sample_time'] = 650
-        par['delay_time'] = 1000
+        par['delay_time'] = 0
         par['test_time'] = 650
-        par['num_rules'] = 2
+        par['num_rules'] = 0
 
     elif par['trial_type'] == 'DMRS45':
         par['rotation_match'] = 45
@@ -230,11 +230,12 @@ def update_trial_params():
         par['num_rules'] = 2
     elif par['trial_type'] == 'OIC':
         par['sample_time'] = 500
-        par['num_rule_tuned'] = 12
-        par['num_rules'] = 2
+        par['num_rule_tuned'] = 0
+        par['num_rules'] = 0
         par['go_time']=300
-        par['pad_time']=1500
-
+        #par['pad_time']=1500
+        par['pad_time']=0
+        par['delay_time']=1000
 
     else:
         print(par['trial_type'], ' not a recognized trial type')
@@ -299,7 +300,7 @@ def update_dependencies():
     elif par['trial_type'] == 'spatialDMS':
         par['trial_length'] = par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time']+par['test_time']
     elif par['trial_type'] == 'OIC':
-         par['trial_length'] = par['dead_time']+par['fix_time']+par['sample_time']+par['go_time']+par['pad_time']
+         par['trial_length'] = par['dead_time']+par['fix_time']+par['sample_time']+par['go_time']+par['delay_time']+par['pad_time']
     elif par['trial_type'] == 'DMC':
          par['trial_length'] = par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time']+par['test_time']
     elif par['trial_type'] == 'OICDMC':

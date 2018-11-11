@@ -255,9 +255,9 @@ def main():
             #else:
             #    trial_type = 'DMC' #odd iterations - DMC
             #trial_info = stim.generate_trial(trial_type)
-            trial_type='OICDMC'
+            trial_type='OIC'
             trial_info = stim.generate_trial(trial_type)
-            save_fn = trial_type + '.pkl'
+            save_fn = trial_type + '_Delay' + '.pkl'
             updates = {'trial_type': trial_type, 'save_fn': save_fn}
             update_parameters(updates)
 
@@ -270,7 +270,7 @@ def main():
                 y: trial_info['desired_output'], mask: trial_info['train_mask']})
 
             if par['trial_type'] == 'DMC'or par['trial_type'] == 'OIC':
-                accuracy, match_accuracy,nonmatch_accuracy = analysis.get_perf(trial_info['desired_output'], y_hat, trial_info['train_mask'])
+                accuracy = analysis.get_perf(trial_info['desired_output'], y_hat, trial_info['train_mask'])
             elif par['trial_type'] == 'OICDMC':
                 accuracy, accuracy_dmc, accuracy_oic = analysis.get_perf_oicdmc(trial_info['desired_output'], y_hat, trial_info['train_mask'],trial_info['task'])
             iteration_time = time.time() - t_start
@@ -283,7 +283,7 @@ def main():
                 if par['trial_type']=='OICDMC':
                     print_results_dmcoic(i, N, iteration_time, perf_loss, spike_loss, state_hist, weight_loss, trial_type,accuracy,accuracy_dmc,accuracy_oic)
                 elif par['trial_type']=='OIC' or par['trial_type']=='DMC':
-                    print_results(i, N, iteration_time, perf_loss, spike_loss, state_hist, accuracy, weight_loss, trial_type,match_accuracy,nonmatch_accuracy)
+                    print_results(i, N, iteration_time, perf_loss, spike_loss, state_hist, accuracy, weight_loss, trial_type)
 
 
             #elif i%par['iters_between_outputs']==0 or i+1==par['num_iterations']: #DMC
@@ -374,13 +374,12 @@ def eval_weights():
 
     return weights
 
-def print_results(iter_num, trials_per_iter, iteration_time, perf_loss, spike_loss, state_hist, accuracy,weight_loss, trial_type,match_accuracy,nonmatch_accuracy):
+def print_results(iter_num, trials_per_iter, iteration_time, perf_loss, spike_loss, state_hist, accuracy,weight_loss, trial_type):
 
     print('Trial {:7d}'.format((iter_num+1)*trials_per_iter) + ' | Time {:0.2f} s'.format(iteration_time) +
       ' | Perf loss {:0.4f}'.format(np.mean(perf_loss)) + ' | Spike loss {:0.4f}'.format(np.mean(spike_loss)) +
       ' | Mean activity {:0.4f}'.format(np.mean(state_hist)) + ' | Accuracy {:0.4f}'.format(np.mean(accuracy)) +
-      ' | Weight loss {:0.4f}'.format(np.mean(weight_loss)) + ' | Trial ', trial_type +
-      ' | Match Accuracy {:0.4f}'.format(np.mean(match_accuracy)) + ' | Non-match Accuracy {:0.4f}'.format(np.mean(nonmatch_accuracy)))
+      ' | Weight loss {:0.4f}'.format(np.mean(weight_loss)) + ' | Trial ', trial_type)
 
 def print_results_dmcoic(iter_num, trials_per_iter, iteration_time, perf_loss, spike_loss, state_hist, weight_loss, trial_type,accuracy, accuracy_dmc,accuracy_oic):
 

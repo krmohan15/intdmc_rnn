@@ -197,8 +197,8 @@ class Stimulus:
         eodead = par['dead_time']//par['dt']
         eof = (par['dead_time']+par['fix_time'])//par['dt']
         eos = (par['dead_time']+par['fix_time']+par['sample_time'])//par['dt']
-        #eod= (par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time'])//par['dt']
-        eog= (par['dead_time']+par['fix_time']+par['sample_time']+par['go_time'])//par['dt']
+        eod= (par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time'])//par['dt']
+        eog= (par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time']+par['go_time'])//par['dt']
         # end of neuron indices
         emt = par['num_motion_tuned']
         eft = par['num_fix_tuned']+par['num_motion_tuned']
@@ -213,11 +213,11 @@ class Stimulus:
         trial_info['train_mask'][:eodead, :] = 0
         # set to mask equal to zero during the test stimulus
         #trial_info['train_mask'][eos:eos+mask_duration,:]=0
-        trial_info['train_mask'][eos:eos+mask_duration,:]=0
+        trial_info['train_mask'][eod:eod+mask_duration,:]=0
         #set mask equal to zero at any time after which the trial has "ended".
         trial_info['train_mask'][eog:,:]=0
         # set fixation equal to 1 for all times; will then change
-        trial_info['desired_output'][0, :eos, :] = 1 #only for first 500 ms
+        trial_info['desired_output'][0, :eod, :] = 1 #only for first 500 ms
 
         for t in range(self.num_trials):#eft+1:esct+nrule esct+1+nrule:ersct
             trial_info['neural_input'][eft+1+nrule:ert,eodead:eog,t] = par['tuning_height']; #rule
@@ -225,7 +225,7 @@ class Stimulus:
             sample_cat = np.floor(sample_dir/(par['num_motion_dirs']/2))
             trial_info['neural_input'][:emt, eof:eos, t] += np.reshape(self.motion_tuning[0][:,sample_dir],(-1,1))
 
-
+            """
             if sample_cat==0:
                 trial_info['desired_output'][1,eos:,t]=1
             elif sample_cat==1:
@@ -235,7 +235,7 @@ class Stimulus:
                 trial_info['desired_output'][1,eod:,t]=1
             elif sample_cat==1:
                 trial_info['desired_output'][2,eod:,t]=1
-            """
+
             trial_info['sample'][t]=sample_dir
 
             #plt.imshow(trial_info['desired_output'][:, :, t])
@@ -312,11 +312,11 @@ class Stimulus:
                 test_dir = np.int_((test_dir+par['num_motion_dirs']//2)%par['num_motion_dirs'])
 
             trial_info['neural_input'][:emt, eod:eot, t] += np.reshape(self.motion_tuning[0][:,test_dir],(-1,1))
-
             if match==1:
-                trial_info['desired_output'][2,eod:eot,t]=1
+                trial_info['desired_output'][1,eod:,t]=1
             else:
-                trial_info['desired_output'][1,eod:eot,t]=1
+                trial_info['desired_output'][0,eod:,t]=1
+
 
             trial_info['sample'][t]=sample_dir
             trial_info['match'][t]=match

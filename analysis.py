@@ -1074,26 +1074,34 @@ def get_perf(y, y_hat, mask):
     y is the desired output
     y_hat is the actual output
     """
-    #trial_length = par['num_time_steps']
-    #ntrials=par['batch_train_size']
-    #op_mask=np.zeros((trial_length, ntrials),dtype=np.float32)
-    #eod= (par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time'])//par['dt']
+    trial_length = par['num_time_steps']
+    ntrials=par['batch_train_size']
+    dmc_mask=np.zeros((trial_length, ntrials),dtype=np.float32)
+    #eod=240
+    #eot=305
+    eod= (par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time'])//par['dt']
     #eot= (par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time']+par['test_time'])//par['dt']
-    #op_mask[eod:eot,:]=1
-    #mask *= op_mask
-
+    eog= (par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time']+par['go_time'])//par['dt']
+    #dmc_mask[eod:eot,:]=1
+    dmc_mask[eod:eog,:]=1
+    mask *= dmc_mask
     y_hat = np.stack(y_hat, axis=1)
-    mask *= y[0,:,:]==0
-    mask_non_match = mask*(y[1,:,:]==1)
-    mask_match = mask*(y[2,:,:]==1)
-    y = np.argmax(y, axis = 0)
-    y_hat = np.argmax(y_hat, axis = 0)
-    accuracy = np.sum(np.float32(y == y_hat)*np.squeeze(mask))/np.sum(mask)
-    match_accuracy = np.sum(np.float32(y == y_hat)*np.squeeze(mask_non_match))/np.sum(mask_non_match)
-    nonmatch_accuracy = np.sum(np.float32(y == y_hat)*np.squeeze(mask_match))/np.sum(mask_match)
+
+    y_dmc = np.argmax(y[0:2,:,:],axis=0)
+    y_hat_dmc = np.argmax(y_hat[0:2,:,:],axis=0)
+    accuracy = np.sum(np.float32(y_dmc == y_hat_dmc)*np.squeeze(mask))/np.sum(mask)
 
 
-    return accuracy, match_accuracy, nonmatch_accuracy
+    #mask_non_match = mask*(y[1,:,:]==1)
+    #mask_match = mask*(y[2,:,:]==1)
+    #y = np.argmax(y, axis = 0)
+    #y_hat = np.argmax(y_hat, axis = 0)
+    #accuracy = np.sum(np.float32(y == y_hat)*np.squeeze(mask))/np.sum(mask)
+    #match_accuracy = np.sum(np.float32(y == y_hat)*np.squeeze(mask_non_match))/np.sum(mask_non_match)
+    #nonmatch_accuracy = np.sum(np.float32(y == y_hat)*np.squeeze(mask_match))/np.sum(mask_match)
+
+
+    return accuracy
 
 def get_perf_oicdmc(y, y_hat, mask,task):
 
