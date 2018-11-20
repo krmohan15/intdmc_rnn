@@ -6,10 +6,11 @@ Contributions from Gregory Grant, Catherine Lee
 import tensorflow as tf
 import numpy as np
 import stimulus
-import time
 import analysis
 import pickle
+import time
 from parameters import *
+import os, sys
 
 # Ignore "use compiled version of TensorFlow" errors
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
@@ -31,7 +32,14 @@ class Model:
         self.mask = tf.unstack(mask, axis=0)
 
         # Load the initial hidden state activity to be used at the start of each trial
-        self.hidden_init = tf.constant(par['h_init'])
+
+        #self.hidden_init = tf.constant(par['h_init'])
+
+        with tf.variable_scope('initial_activity'):
+            self.hidden_init = tf.get_variable('hidden_init', initializer = par['h_init'], trainable=True)
+
+        #self.hidden_init = tf.random_uniform([par['n_hidden'], 1], 0, 0.5)
+
 
         # Load the initial synaptic depression and facilitation to be used at the start of each trial
         self.synapse_x_init = tf.constant(par['syn_x_init'])
@@ -50,6 +58,9 @@ class Model:
         Run the reccurent network
         History of hidden state activity stored in self.hidden_state_hist
         """
+
+
+
         self.rnn_cell_loop(self.input_data, self.hidden_init, self.synapse_x_init, self.synapse_u_init)
 
         with tf.variable_scope('output'):
@@ -103,33 +114,18 @@ class Model:
             # and inhibitory neurons have negative outgoing weights
             W_rnn_effective = tf.matmul(tf.nn.relu(W_rnn), self.W_ei)
         else:
-            W_rnn_effective = W_rnn
+            W_rnn_effective = W_rnn_drop
 
         """
         Update the synaptic plasticity paramaters
         """
-        if par['synapse_config'] == 'std_stf':
+        if par['synapse_config'] is not None:
             # implement both synaptic short term facilitation and depression
-            syn_x += par['alpha_std']*(1-syn_x) - par['dt_sec']*syn_u*syn_x*h
-            syn_u += par['alpha_stf']*(par['U']-syn_u) + par['dt_sec']*par['U']*(1-syn_u)*h
+            syn_x += (par['alpha_std']*(1-syn_x) - par['dt_sec']*syn_u*syn_x*h)*par['dynamic_synapse']
+            syn_u += (par['alpha_stf']*(par['U']-syn_u) + par['dt_sec']*par['U']*(1-syn_u)*h)*par['dynamic_synapse']
             syn_x = tf.minimum(np.float32(1), tf.nn.relu(syn_x))
             syn_u = tf.minimum(np.float32(1), tf.nn.relu(syn_u))
             h_post = syn_u*syn_x*h
-
-        elif par['synapse_config'] == 'std':
-            # implement synaptic short term derpression, but no facilitation
-            # we assume that syn_u remains constant at 1
-            syn_x += par['alpha_std']*(1-syn_x) - par['dt_sec']*syn_x*h
-            syn_x = tf.minimum(np.float32(1), tf.nn.relu(syn_x))
-            syn_u = tf.minimum(np.float32(1), tf.nn.relu(syn_u))
-            h_post = syn_x*h
-
-        elif par['synapse_config'] == 'stf':
-            # implement synaptic short term facilitation, but no depression
-            # we assume that syn_x remains constant at 1
-            syn_u += par['alpha_stf']*(par['U']-syn_u) + par['dt_sec']*par['U']*(1-syn_u)*h
-            syn_u = tf.minimum(np.float32(1), tf.nn.relu(syn_u))
-            h_post = syn_u*h
 
         else:
             # no synaptic plasticity
@@ -152,31 +148,31 @@ class Model:
 
         """
         Calculate the loss functions and optimize the weights
-        """
-        #perf_loss = [mask*tf.reduce_mean(tf.square(y_hat-desired_output),axis=0)
-        #             for (y_hat, desired_output, mask) in zip(self.y_hat, self.target_data, self.mask)]
 
+        perf_loss = [mask*tf.reduce_mean(tf.square(y_hat-desired_output),axis=0)
+                     for (y_hat, desired_output, mask) in zip(self.y_hat, self.target_data, self.mask)]
+        """
         """
         cross_entropy
         """
-        perf_loss = [mask*tf.nn.softmax_cross_entropy_with_logits(logits = y_hat, labels = desired_output, dim=0) \
-                for (y_hat, desired_output, mask) in zip(self.y_hat, self.target_data, self.mask)]
+        self.perf_loss = tf.reduce_mean(tf.stack([mask*tf.nn.softmax_cross_entropy_with_logits(logits = y_hat, labels = desired_output, dim=0) \
+                for (y_hat, desired_output, mask) in zip(self.y_hat, self.target_data, self.mask)]))
 
 
         # L2 penalty term on hidden state activity to encourage low spike rate solutions
-        spike_loss = [par['spike_cost']*tf.reduce_mean(tf.square(h), axis=0) for h in self.hidden_state_hist]
+        #spike_loss = [par['spike_cost']*tf.reduce_mean(tf.square(h), axis=0) for h in self.hidden_state_hist]
+        if par['spike_regularization'] == 'L1':
+            self.spike_loss = par['spike_cost']*tf.reduce_mean(tf.stack([tf.reduce_mean(h) for h in self.hidden_state_hist]))
+        elif par['spike_regularization'] == 'L2':
+            self.spike_loss = par['spike_cost']*tf.reduce_mean(tf.stack([tf.reduce_mean(tf.square(h)) for h in self.hidden_state_hist]))
+        else:
+            error('Unrecognized spike regularization')
+
 
         with tf.variable_scope('rnn_cell', reuse = True):
-            W_in = tf.get_variable('W_in')
             W_rnn = tf.get_variable('W_rnn')
-        with tf.variable_scope('output', reuse = True):
-            W_out = tf.get_variable('W_out')
 
-        self.weight_loss = par['weight_cost']*(tf.reduce_sum(tf.nn.relu(W_in)) + tf.reduce_sum(tf.nn.relu(W_rnn)) \
-            + tf.reduce_sum(tf.nn.relu(W_out)))
-
-        self.perf_loss = tf.reduce_mean(tf.stack(perf_loss, axis=0))
-        self.spike_loss = tf.reduce_mean(tf.stack(spike_loss, axis=0))
+        self.weight_loss = par['weight_cost']*tf.reduce_mean(tf.square(tf.nn.relu(W_rnn)))
 
         self.loss = self.perf_loss + self.spike_loss + self.weight_loss
 
@@ -194,19 +190,24 @@ class Model:
             elif var.name == "output/W_out:0":
                 grad *= par['w_out_mask']
                 print('Applied weight mask to w_out.')
+            elif var.name == "rnn_cell/W_in:0":
+                grad *= par['w_in_mask']
+                print('Applied weight mask to w_in.')
             if not str(type(grad)) == "<class 'NoneType'>":
                 capped_gvs.append((tf.clip_by_norm(grad, par['clip_max_grad_val']), var))
 
         self.train_op = opt.apply_gradients(capped_gvs)
 
 
-def train_and_analyze():
+def main(gpu_id = None):
 
-    tf.reset_default_graph()
-    main()
+    if gpu_id is not None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
 
-
-def main():
+    """
+    Print key parameters
+    """
+    print_important_params()
 
     """
     Reset TensorFlow before running anything
@@ -228,38 +229,24 @@ def main():
     x = tf.placeholder(tf.float32, shape=[n_input, par['num_time_steps'], par['batch_train_size']])  # input data
     y = tf.placeholder(tf.float32, shape=[n_output, par['num_time_steps'], par['batch_train_size']]) # target data
 
+    config = tf.ConfigProto()
 
     # enter "config=tf.ConfigProto(log_device_placement=True)" inside Session to check whether CPU/GPU in use
-    with tf.Session() as sess:
+    with tf.Session(config=config) as sess:
 
-        #with tf.device("/gpu:0"):
-        model = Model(x, y, mask)
-        init = tf.global_variables_initializer()
-        sess.run(init)
-        t_start = time.time()
+        device = '/cpu:0' if gpu_id is None else '/gpu:0'
+        with tf.device(device):
+            model = Model(x, y, mask)
 
-        saver = tf.train.Saver()
-        # Restore variables from previous model if desired
-        if par['load_previous_model']:
-            saver.restore(sess, par['save_dir'] + par['ckpt_load_fn'])
-            print('Model ' +  par['ckpt_load_fn'] + ' restored.')
+        sess.run(tf.global_variables_initializer())
 
         # keep track of the model performance across training
-        model_performance = {'accuracy': [], 'loss': [], 'perf_loss': [], 'spike_loss': [], 'trial': [], 'time': [], 'weight_loss': []}
+        model_performance = {'accuracy': [], 'loss': [], 'perf_loss': [], 'spike_loss': [], 'weight_loss': [], 'trial': []}
 
         for i in range(par['num_iterations']):
 
             # generate batch of batch_train_size
-            #if i%2==0:
-            #    trial_type = 'OIC' #even iterations - OIC
-            #else:
-            #    trial_type = 'DMC' #odd iterations - DMC
-            #trial_info = stim.generate_trial(trial_type)
-            trial_type='OIC'
-            trial_info = stim.generate_trial(trial_type)
-            save_fn = trial_type + '_Delay' + '.pkl'
-            updates = {'trial_type': trial_type, 'save_fn': save_fn}
-            update_parameters(updates)
+            trial_info = stim.generate_trial(set_rule = None)
 
             """
             Run the model
@@ -269,31 +256,20 @@ def main():
                 model.hidden_state_hist, model.syn_x_hist, model.syn_u_hist], {x: trial_info['neural_input'], \
                 y: trial_info['desired_output'], mask: trial_info['train_mask']})
 
-            if par['trial_type'] == 'DMC'or par['trial_type'] == 'OIC':
-                accuracy = analysis.get_perf(trial_info['desired_output'], y_hat, trial_info['train_mask'])
-            elif par['trial_type'] == 'OICDMC':
-                accuracy, accuracy_dmc, accuracy_oic = analysis.get_perf_oicdmc(trial_info['desired_output'], y_hat, trial_info['train_mask'],trial_info['task'])
-            iteration_time = time.time() - t_start
-            model_performance = append_model_performance(model_performance, accuracy, loss, perf_loss, spike_loss, (i+1)*N, iteration_time,weight_loss)
+            accuracy, _, _ = analysis.get_perf(trial_info['desired_output'], y_hat, trial_info['train_mask'])
+
+            model_performance = append_model_performance(model_performance, accuracy, loss, perf_loss, spike_loss, weight_loss, (i+1)*N)
 
             """
             Save the network model and output model performance to screen
             """
-            if (i+1)%par['iters_between_outputs']==0 or i+1==par['num_iterations']:
-                if par['trial_type']=='OICDMC':
-                    print_results_dmcoic(i, N, iteration_time, perf_loss, spike_loss, state_hist, weight_loss, trial_type,accuracy,accuracy_dmc,accuracy_oic)
-                elif par['trial_type']=='OIC' or par['trial_type']=='DMC':
-                    print_results(i, N, iteration_time, perf_loss, spike_loss, state_hist, accuracy, weight_loss, trial_type)
+            if i%par['iters_between_outputs']==0:
+                print_results(i, N, perf_loss, spike_loss, weight_loss, state_hist, accuracy)
 
-
-            #elif i%par['iters_between_outputs']==0 or i+1==par['num_iterations']: #DMC
-            #    print_results(i, N, iteration_time, perf_loss, spike_loss, state_hist, accuracy, weight_loss, trial_type)
 
         """
-        Save model, analyze the network model and save the results
+        Save model, analyze the network model and save the results - KM added 11/19 - remove once you can access data from analysis
         """
-        #save_path = saver.save(sess, par['save_dir'] + par['ckpt_save_fn'])
-
         h_stacked = np.stack(state_hist, axis=1)
         trial_time = np.arange(0,h_stacked.shape[1]*par['dt'], par['dt'])
         weights = eval_weights()
@@ -310,46 +286,29 @@ def main():
         results['syn_u'] = syn_u_hist
         save_fn = par['save_dir'] + par['save_fn']
         pickle.dump(results, open(save_fn, 'wb'))
-
-        if par['analyze_model']:
-            weights = eval_weights()
-            analysis.analyze_model(trial_info, y_hat, state_hist, syn_x_hist, syn_u_hist, model_performance, weights, \
-                simulation = True, tuning = False, decoding = False, load_previous_file = False, save_raw_data = False)
-
-            #Generate another batch of trials with decoding_test_mode = True (sample and test stimuli
-            # are independently drawn), and then perform tuning and decoding analysis
-            update = {'decoding_test_mode': True}
-            update_parameters(update)
-            trial_info = stim.generate_trial()
-            y_hat, state_hist, syn_x_hist, syn_u_hist = \
-                sess.run([model.y_hat, model.hidden_state_hist, model.syn_x_hist, model.syn_u_hist], \
-                {x: trial_info['neural_input'], y: trial_info['desired_output'], mask: trial_info['train_mask']})
-            analysis.analyze_model(trial_info, y_hat, state_hist, syn_x_hist, syn_u_hist, model_performance, weights, \
-                simulation = False, tuning = par['analyze_tuning'], decoding = True, load_previous_file = True, save_raw_data = True)
-
-            if par['trial_type'] == 'dualDMS':
-                # run an additional session with probe stimuli
-                save_fn = 'probe_' + par['save_fn']
-                update = {'probe_trial_pct': 1, 'save_fn': save_fn}
-                update_parameters(update)
-                trial_info = stim.generate_trial()
-                y_hat, state_hist, syn_x_hist, syn_u_hist = \
-                    sess.run([model.y_hat, model.hidden_state_hist, model.syn_x_hist, model.syn_u_hist], \
-                    {x: trial_info['neural_input'], y: trial_info['desired_output'], mask: trial_info['train_mask']})
-                analysis.analyze_model(trial_info, y_hat, state_hist, syn_x_hist, \
-                    syn_u_hist, model_performance, weights, simulation = False, tuning = False, decoding = True, \
-                    load_previous_file = False, save_raw_data = False)
+        #save_results(model_performance)
 
 
-def append_model_performance(model_performance, accuracy, loss, perf_loss, spike_loss, trial_num, iteration_time, weight_loss):
+
+def save_results(model_performance):
+
+    weights = eval_weights()
+    results = {'weights': weights, 'parameters': par}
+    for k,v in model_performance.items():
+        results[k] = v
+    fn = par['save_dir'] + par['save_fn']
+    pickle.dump(results, open(fn, 'wb'))
+    print('Model results saved in ',fn)
+
+
+def append_model_performance(model_performance, accuracy, loss, perf_loss, spike_loss, weight_loss, trial_num):
 
     model_performance['accuracy'].append(accuracy)
     model_performance['loss'].append(loss)
     model_performance['perf_loss'].append(perf_loss)
     model_performance['spike_loss'].append(spike_loss)
+    model_performance['weight_loss'].append(weight_loss)
     model_performance['trial'].append(trial_num)
-    model_performance['time'].append(iteration_time)
-    model_performance['time'].append(weight_loss)
 
     return model_performance
 
@@ -364,27 +323,30 @@ def eval_weights():
         W_out = tf.get_variable('W_out')
         b_out = tf.get_variable('b_out')
 
+    with tf.variable_scope('initial_activity', reuse=True):
+        hidden_init = tf.get_variable('hidden_init')
+
+
     weights = {
         'w_in'  : W_in.eval(),
         'w_rnn' : W_rnn.eval(),
         'w_out' : W_out.eval(),
         'b_rnn' : b_rnn.eval(),
-        'b_out'  : b_out.eval()
-    }
+        'b_out'  : b_out.eval(),
+        'hidden_init': hidden_init.eval()}
 
     return weights
 
-def print_results(iter_num, trials_per_iter, iteration_time, perf_loss, spike_loss, state_hist, accuracy,weight_loss, trial_type):
+def print_results(iter_num, trials_per_iter, perf_loss, spike_loss, weight_loss, state_hist, accuracy):
 
-    print('Trial {:7d}'.format((iter_num+1)*trials_per_iter) + ' | Time {:0.2f} s'.format(iteration_time) +
-      ' | Perf loss {:0.4f}'.format(np.mean(perf_loss)) + ' | Spike loss {:0.4f}'.format(np.mean(spike_loss)) +
-      ' | Mean activity {:0.4f}'.format(np.mean(state_hist)) + ' | Accuracy {:0.4f}'.format(np.mean(accuracy)) +
-      ' | Weight loss {:0.4f}'.format(np.mean(weight_loss)) + ' | Trial ', trial_type)
+    print(par['trial_type'] + ' Iter. {:4d}'.format(iter_num) + ' | Accuracy {:0.4f}'.format(accuracy) +
+      ' | Perf loss {:0.4f}'.format(perf_loss) + ' | Spike loss {:0.4f}'.format(spike_loss) +
+      ' | Weight loss {:0.4f}'.format(weight_loss) + ' | Mean activity {:0.4f}'.format(np.mean(state_hist)))
 
-def print_results_dmcoic(iter_num, trials_per_iter, iteration_time, perf_loss, spike_loss, state_hist, weight_loss, trial_type,accuracy, accuracy_dmc,accuracy_oic):
+def print_important_params():
 
-    print('Trial {:7d}'.format((iter_num+1)*trials_per_iter) + ' | Time {:0.2f} s'.format(iteration_time) +
-      ' | Perf loss {:0.4f}'.format(np.mean(perf_loss)) + ' | Spike loss {:0.4f}'.format(np.mean(spike_loss)) +
-      ' | Mean activity {:0.4f}'.format(np.mean(state_hist)) + ' | Accuracy {:0.4f}'.format(np.mean(accuracy)) +
-      ' | Weight loss {:0.4f}'.format(np.mean(weight_loss)) + ' | Trial ', trial_type + ' | Accuracy {:0.4f}'.format(np.mean(accuracy)) +
-      ' | DMC Accuracy {:0.4f}'.format(np.mean(accuracy_dmc)) + ' | OIC Accuracy {:0.4f}'.format(np.mean(accuracy_oic)))
+    important_params = ['num_iterations', 'learning_rate', 'noise_rnn_sd', 'noise_in_sd','spike_cost',\
+        'spike_regularization', 'weight_cost','test_cost_multiplier', 'trial_type','balance_EI', 'dt',\
+        'delay_time','weight_multiplier', 'connection_prob','synapse_config','tau_slow']
+    for k in important_params:
+        print(k, ': ', par[k])
