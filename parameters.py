@@ -240,7 +240,7 @@ def update_trial_params():
         par['pad_time'] =1500
 
     elif par['trial_type'] == 'OICDelay':
-        par['num_rules'] = 2
+        par['num_rules'] = 1
         par['num_rule_tuned'] = 12
         par['rule_onset_time'] = [par['dead_time']]
         par['rule_offset_time'] = [par['dead_time']+par['fix_time']+par['sample_time'] + par['delay_time'] + par['test_time']]
@@ -278,7 +278,7 @@ def update_dependencies():
     # Length of each trial in ms
     if par['trial_type'] == 'dualDMS':
         par['trial_length'] = par['dead_time']+par['fix_time']+par['sample_time']+2*par['delay_time']+2*par['test_time']
-    elif par['trial_type'] == 'OIC':
+    elif par['trial_type'] == 'OIC' or par['trial_type']=='OICDelay':
         par['trial_length'] = par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time']+par['test_time']+par['pad_time']
     else:
         par['trial_length'] = par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time']+par['test_time']
