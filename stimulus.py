@@ -22,9 +22,9 @@ class Stimulus:
             trial_info = self.generate_dualDMS_trial(test_mode)
         elif par['trial_type'] == 'distractor':
             trial_info = self.generate_distractor_trial()
-        elif par['trial_type'] == 'OIC':
+        elif par['trial_type'] == 'OIC' or par['trial_type'] == 'OICDelay':
             trial_info = self.generate_oic_trial()
-        elif par['trial_type'] == 'DMC':
+        elif par['trial_type'] == 'DMC' or par['trial_type'] == 'DMCNoDelay':
             trial_info = self.generate_dmc_trial()
         elif par['trial_type'] == 'OICDMC':
             trial_info = self.generate_oicdmc_trial()
@@ -56,8 +56,7 @@ class Stimulus:
                       'test'            :  np.zeros((par['batch_train_size']),dtype=np.int8),
                       'rule'            :  np.zeros((par['batch_train_size']),dtype=np.int8),
                       'match'           :  np.zeros((par['batch_train_size']),dtype=np.int8),
-                      'catch'           :  np.zeros((par['batch_train_size']),dtype=np.int8),
-                      'probe'           :  np.zeros((par['batch_train_size']),dtype=np.int8),
+                      'task'            :  np.zeros((par['batch_train_size']),dtype=np.int8),
                       'neural_input'    :  np.random.normal(par['input_mean'], par['noise_in'], size=(par['n_input'], par['num_time_steps'], par['batch_train_size']))}
 
 
@@ -189,6 +188,7 @@ class Stimulus:
         trial_info = {'desired_output'  :  np.zeros((par['n_output'], par['num_time_steps'], par['batch_train_size']),dtype=np.float32),
                       'train_mask'      :  np.ones((par['num_time_steps'], par['batch_train_size']),dtype=np.float32),
                       'sample'          :  np.zeros((par['batch_train_size']),dtype=np.int8),
+                      'task'            :  np.zeros((par['batch_train_size']),dtype=np.int8),
                       'neural_input'    :  np.random.normal(par['input_mean'], par['noise_in'], size=(par['n_input'], par['num_time_steps'], par['batch_train_size']))}
 
         # set to mask equal to zero during the dead time
@@ -260,6 +260,219 @@ class Stimulus:
         #plt.show()
 
         #trial_info['train_mask'] /= np.mean(trial_info['train_mask'][par['dead_time']//par['dt']:,:])
+
+        return trial_info
+
+    def generate_oicdmc_trial(self):
+
+        """
+        Generate a delayed match to categorization task
+        One motion stimulus is shown for 650ms - sample stimulus,
+        it is followed by a delay period - 1000 ms,
+        this is followed by a test stimulusself.
+        If the sample and test stimulus match in category, then
+        release lever.
+        If the sample and test stimulus do not match in category, then
+        hold lever.
+        Generate a one-interval categorization task
+        One motion stimulus is shown for 500ms,
+        then two colored targets are shown in two locations.
+        If the stimulus is category 1, then go to the red target
+        else if the stimulus is category 2, then go to the green target.
+        """
+
+        # range of variable delay, in time steps
+        var_delay_max = par['variable_delay_max']//par['dt']
+
+        # duration of mask after test onset
+        mask_duration = par['mask_duration']//par['dt']
+
+        trial_info = {'desired_output'  :  np.zeros((par['n_output'], par['num_time_steps'], par['batch_train_size']),dtype=np.float32),
+                      'train_mask'      :  np.ones((par['num_time_steps'], par['batch_train_size']),dtype=np.float32),
+                      'sample'          :  np.zeros((par['batch_train_size']),dtype=np.int8),
+                      'test'            :  np.zeros((par['batch_train_size']),dtype=np.int8),
+                      'rule'            :  np.zeros((par['batch_train_size']),dtype=np.int8),
+                      'match'           :  np.zeros((par['batch_train_size']),dtype=np.int8),
+                      'task'            :  np.zeros((par['batch_train_size']),dtype=np.int8),
+                      'neural_input'    :  np.random.normal(par['input_mean'], par['noise_in'], size=(par['n_input'], par['num_time_steps'], par['batch_train_size']))}
+
+        # set to mask equal to zero during the dead time
+        trial_info['train_mask'][par['dead_time_rng'], :] = 0
+
+        for t in range(par['batch_train_size']):
+            tr_type=np.random.randint(2)
+            if tr_type==0: #OIC trial
+                """
+                Generate trial paramaters
+                """
+                updates={'trial_type':'OIC'}
+                update_parameters(updates)
+                sample_dir = np.random.randint(par['num_motion_dirs'])
+                sample_cat = np.floor(sample_dir/(par['num_motion_dirs']/2))
+                test_RF = np.random.choice([1,2]) if  par['trial_type'] == 'location_DMS' else 0
+                rule=tr_type
+
+                """
+                Determine the delay time for this trial
+                The total trial length is kept constant, so a shorter delay implies a longer test stimulus
+                """
+                if par['var_delay']:
+                    s = int(np.random.exponential(scale=par['variable_delay_max']/2))
+                    if s <= par['variable_delay_max']:
+                        eod_current = eod - var_delay_max + s
+                        test_onset = (par['dead_time']+par['fix_time']+par['sample_time'] + s)//par['dt']
+                    else:
+                        catch = 1
+                else:
+                    test_onset = (par['dead_time']+par['fix_time']+par['sample_time'] + par['delay_time'])//par['dt']
+
+                test_time_rng =  range(test_onset, par['num_time_steps'])
+                fix_time_rng =  range(test_onset)
+                mask_time_rng = range(test_onset+par['test_time']//par['dt'],par['num_time_steps'])
+                trial_info['train_mask'][test_onset:test_onset+mask_duration, t] = 0
+                trial_info['train_mask'][mask_time_rng, t] = 0
+                """
+                Calculate neural input based on sample, tests, fixation, rule, and probe
+                """
+                # SAMPLE stimulus
+                trial_info['neural_input'][:, par['sample_time_rng'], t] += np.reshape(self.motion_tuning[:, 0, sample_dir],(-1,1))
+
+                # FIXATION cue
+                if par['num_fix_tuned'] > 0:
+                    trial_info['neural_input'][:, fix_time_rng, t] += np.reshape(self.fix_tuning[:,0],(-1,1))
+
+                # RULE CUE
+                if par['num_rules']> 1 and par['num_rule_tuned'] > 0:
+                    trial_info['neural_input'][:, par['rule_time_rng'][0], t] += np.reshape(self.rule_tuning[:,rule],(-1,1))
+
+                """
+                Determine the desired network output response
+                """
+                trial_info['desired_output'][0, fix_time_rng, t] = 1
+                trial_info['train_mask'][ test_time_rng, t] *= par['test_cost_multiplier'] # can use a greater weight for test period if needed
+                if sample_cat==0:
+                    trial_info['desired_output'][2,test_time_rng,t]=1
+                elif sample_cat==1:
+                    trial_info['desired_output'][3,test_time_rng,t]=1
+                """
+                Append trial info
+                """
+                trial_info['sample'][t] = sample_dir
+                trial_info['task'][t] = tr_type
+
+                #plt.imshow(trial_info['desired_output'][:, :, t])
+                #plt.colorbar()
+                #plt.show()
+
+                #plt.imshow(trial_info['neural_input'][:, :, t])
+                #plt.colorbar()
+                #plt.show()
+
+                #plt.imshow(trial_info['train_mask'][:,:])
+                #plt.colorbar()
+                #plt.show()
+
+            elif tr_type==1:
+                updates={'trial_type':'DMC'}
+                update_parameters(updates)
+                """
+                Generate trial paramaters
+                """
+                sample_dir = np.random.randint(par['num_motion_dirs'])
+                test_RF = np.random.choice([1,2]) if  par['trial_type'] == 'location_DMS' else 0
+
+                #rule = np.random.randint(par['num_rules']) if set_rule is None else set_rule
+                rule=tr_type
+
+                #if par['trial_type'] == 'DMC' or (par['trial_type'] == 'DMS+DMC' and rule == 1) or (par['trial_type'] == 'DMS+DMRS+DMC' and rule == 2):
+                    # for DMS+DMC trial type, rule 0 will be DMS, and rule 1 will be DMC
+                #    current_trial_DMC = True
+                #else:
+                #    current_trial_DMC = False
+
+                match = np.random.randint(2)
+                #catch = np.random.rand() < par['catch_trial_pct']
+
+
+                """
+                Determine the delay time for this trial
+                The total trial length is kept constant, so a shorter delay implies a longer test stimulus
+                """
+                if par['var_delay']:
+                    s = int(np.random.exponential(scale=par['variable_delay_max']/2))
+                    if s <= par['variable_delay_max']:
+                        eod_current = eod - var_delay_max + s
+                        test_onset = (par['dead_time']+par['fix_time']+par['sample_time'] + s)//par['dt']
+                    else:
+                        catch = 1
+                else:
+                    test_onset = (par['dead_time']+par['fix_time']+par['sample_time'] + par['delay_time'])//par['dt']
+
+                test_time_rng =  range(test_onset, par['num_time_steps'])
+                fix_time_rng =  range(test_onset)
+                trial_info['train_mask'][test_onset:test_onset+mask_duration, t] = 0
+
+                """
+                Generate the sample and test stimuli based on the rule
+                """
+                # DMC
+                sample_cat = np.floor(sample_dir/(par['num_motion_dirs']/2))
+                if match == 1: # match trial
+                    # do not use sample_dir as a match test stimulus
+                    dir0 = int(sample_cat*par['num_motion_dirs']//2)
+                    dir1 = int(par['num_motion_dirs']//2 + sample_cat*par['num_motion_dirs']//2)
+                    possible_dirs = np.setdiff1d(list(range(dir0, dir1)), sample_dir)
+                    test_dir = possible_dirs[np.random.randint(len(possible_dirs))]
+                else:
+                    test_dir = sample_cat*(par['num_motion_dirs']//2) + np.random.randint(par['num_motion_dirs']//2)
+                    test_dir = np.int_((test_dir+par['num_motion_dirs']//2)%par['num_motion_dirs'])
+
+                """
+                Calculate neural input based on sample, tests, fixation, rule, and probe
+                """
+                # SAMPLE stimulus
+                trial_info['neural_input'][:, par['sample_time_rng'], t] += np.reshape(self.motion_tuning[:, 0, sample_dir],(-1,1))
+
+                # TEST stimulus
+                trial_info['neural_input'][:, test_time_rng, t] += np.reshape(self.motion_tuning[:, test_RF, test_dir],(-1,1))
+
+                # FIXATION cue
+                if par['num_fix_tuned'] > 0:
+                    trial_info['neural_input'][:, fix_time_rng, t] += np.reshape(self.fix_tuning[:,0],(-1,1))
+
+                # RULE CUE
+                if par['num_rules']> 1 and par['num_rule_tuned'] > 0:
+                    trial_info['neural_input'][:, par['rule_time_rng'][0], t] += np.reshape(self.rule_tuning[:,rule],(-1,1))
+
+                """
+                Determine the desired network output response
+                """
+                trial_info['desired_output'][0, fix_time_rng, t] = 1
+                trial_info['train_mask'][ test_time_rng, t] *= par['test_cost_multiplier'] # can use a greater weight for test period if needed
+                if match == 0:
+                    trial_info['desired_output'][0, test_time_rng, t] = 1 #non match
+                else:
+                    trial_info['desired_output'][1, test_time_rng, t] = 1 #match
+
+                """
+                Append trial info
+                """
+                trial_info['sample'][t] = sample_dir
+                trial_info['test'][t] = test_dir
+                trial_info['match'][t] = match
+                trial_info['task'][t] = tr_type
+
+        #plt.imshow(trial_info['desired_output'][:, :, t])
+        #plt.colorbar()
+        #plt.show()
+
+        #plt.imshow(trial_info['neural_input'][:, :, t])
+        #plt.colorbar()
+        #plt.show()
+
+        #plt.imshow(trial_info['train_mask'][:,:])
+        #plt.colorbar()
+        #plt.show()
 
         return trial_info
 

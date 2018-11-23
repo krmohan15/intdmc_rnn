@@ -11,20 +11,20 @@ Independent parameters
 
 par = {
     # Setup parameters
-    'save_dir'              : 'C:/Users/Krithika/Documents/Freedmanlab_reading list_papers/RNNs/intdmc_rnn_improvedcode/',
+    'save_dir'              : 'C:/Users/FREEDMAN_LAB/Documents/RNNs/intdmc_rnn-master/',
     'debug_model'           : False,
     'load_previous_model'   : False,
     'analyze_model'         : False,
 
     # Network configuration
-    'synapse_config'        : 'full', # Full is 'std_stf'
+    'synapse_config'        : 'full',      # Full is 'std_stf'
     'exc_inh_prop'          : 0.8,       # Literature 0.8, for EI off 1
     'var_delay'             : False,
 
     # Network shape
     'num_motion_tuned'      : 36,
-    'num_fix_tuned'         : 0,
-    'num_rule_tuned'        : 0,
+    'num_fix_tuned'         : 10,
+    'num_rule_tuned'        : 12,
     'n_hidden'              : 100,
     'n_output'              : 4,
 
@@ -77,7 +77,7 @@ par = {
     'mask_duration'         : 50,  # duration of traing mask after test onset
     'catch_trial_pct'       : 0.0,
     'num_receptive_fields'  : 1,
-    'num_rules'             : 1, # this will be two for the DMS+DMRS task
+    'num_rules'             : 2, # this will be two for the DMS+DMRS task
 
     # Save paths
     'save_fn'               : 'model_results.pkl',
@@ -106,7 +106,7 @@ def update_parameters(updates):
     Takes a list of strings and values for updating parameters in the parameter dictionary
     Example: updates = [(key, val), (key, val)]
     """
-    print('Updating parameters...')
+    #print('Updating parameters...')
     for key, val in updates.items():
         par[key] = val
         #print('Updating ', key)
@@ -221,19 +221,42 @@ def update_trial_params():
         par['num_receptive_fields'] = 1
 
     elif par['trial_type'] == 'DMC':
-        par['num_rules'] = 0
+        par['num_rules'] = 2
         par['num_rule_tuned'] = 12
+        par['sample_time'] = 650
+        par['delay_time'] = 1000
+        par['test_time'] = 650
         par['rule_onset_time'] = [par['dead_time']]
         par['rule_offset_time'] = [par['dead_time']+par['fix_time']+par['sample_time'] + par['delay_time'] + par['test_time']]
 
     elif par['trial_type'] == 'OIC':
-        par['num_rules'] = 0
+        par['num_rules'] = 2
         par['num_rule_tuned'] = 12
         par['rule_onset_time'] = [par['dead_time']]
         par['rule_offset_time'] = [par['dead_time']+par['fix_time']+par['sample_time'] + par['delay_time'] + par['test_time']]
         par['sample_time'] = 500
         par['delay_time'] = 0
         par['test_time'] = 300
+        par['pad_time'] =1500
+
+    elif par['trial_type'] == 'OICDelay':
+        par['num_rules'] = 2
+        par['num_rule_tuned'] = 12
+        par['rule_onset_time'] = [par['dead_time']]
+        par['rule_offset_time'] = [par['dead_time']+par['fix_time']+par['sample_time'] + par['delay_time'] + par['test_time']]
+        par['sample_time'] = 500
+        par['delay_time'] = 1000
+        par['test_time'] = 300
+        par['pad_time'] =1500-par['delay_time']
+
+    elif par['trial_type'] == 'OICDMC':
+        par['num_rules'] = 2
+        par['num_rule_tuned'] = 12
+        par['sample_time'] = 650
+        par['delay_time'] = 1000
+        par['test_time'] = 650
+        par['rule_onset_time'] = [par['dead_time']]
+        par['rule_offset_time'] = [par['dead_time']+par['fix_time']+par['sample_time'] + par['delay_time'] + par['test_time']]
 
 
     else:
@@ -255,6 +278,8 @@ def update_dependencies():
     # Length of each trial in ms
     if par['trial_type'] == 'dualDMS':
         par['trial_length'] = par['dead_time']+par['fix_time']+par['sample_time']+2*par['delay_time']+2*par['test_time']
+    elif par['trial_type'] == 'OIC':
+        par['trial_length'] = par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time']+par['test_time']+par['pad_time']
     else:
         par['trial_length'] = par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time']+par['test_time']
     # Length of each trial in time steps

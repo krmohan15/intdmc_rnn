@@ -155,7 +155,7 @@ class Model:
         """
         cross_entropy
         """
-        self.perf_loss = tf.reduce_mean(tf.stack([mask*tf.nn.softmax_cross_entropy_with_logits(logits = y_hat, labels = desired_output, dim=0) \
+        self.perf_loss = tf.reduce_mean(tf.stack([mask*tf.nn.softmax_cross_entropy_with_logits_v2(logits = y_hat, labels = desired_output, dim=0) \
                 for (y_hat, desired_output, mask) in zip(self.y_hat, self.target_data, self.mask)]))
 
 
@@ -246,6 +246,8 @@ def main(gpu_id = None):
         for i in range(par['num_iterations']):
 
             # generate batch of batch_train_size
+            updates={'trial_type':'OICDelay'}
+            update_parameters(updates)
             trial_info = stim.generate_trial(set_rule = None)
 
             """
@@ -256,7 +258,7 @@ def main(gpu_id = None):
                 model.hidden_state_hist, model.syn_x_hist, model.syn_u_hist], {x: trial_info['neural_input'], \
                 y: trial_info['desired_output'], mask: trial_info['train_mask']})
 
-            accuracy, _, _ = analysis.get_perf(trial_info['desired_output'], y_hat, trial_info['train_mask'])
+            accuracy, accuracy_dmc, accuracy_oic = analysis.get_perf_oicdmc(trial_info['desired_output'], y_hat, trial_info['train_mask'],trial_info['task'])
 
             model_performance = append_model_performance(model_performance, accuracy, loss, perf_loss, spike_loss, weight_loss, (i+1)*N)
 
@@ -264,7 +266,7 @@ def main(gpu_id = None):
             Save the network model and output model performance to screen
             """
             if i%par['iters_between_outputs']==0:
-                print_results(i, N, perf_loss, spike_loss, weight_loss, state_hist, accuracy)
+                print_results(i, N, perf_loss, spike_loss, weight_loss, state_hist, accuracy,accuracy_dmc,accuracy_oic)
 
 
         """
@@ -337,11 +339,12 @@ def eval_weights():
 
     return weights
 
-def print_results(iter_num, trials_per_iter, perf_loss, spike_loss, weight_loss, state_hist, accuracy):
+def print_results(iter_num, trials_per_iter, perf_loss, spike_loss, weight_loss, state_hist, accuracy,accuracy_dmc,accuracy_oic):
 
     print(par['trial_type'] + ' Iter. {:4d}'.format(iter_num) + ' | Accuracy {:0.4f}'.format(accuracy) +
       ' | Perf loss {:0.4f}'.format(perf_loss) + ' | Spike loss {:0.4f}'.format(spike_loss) +
-      ' | Weight loss {:0.4f}'.format(weight_loss) + ' | Mean activity {:0.4f}'.format(np.mean(state_hist)))
+      ' | Weight loss {:0.4f}'.format(weight_loss) + ' | Mean activity {:0.4f}'.format(np.mean(state_hist)) +
+      ' | DMC Accuracy {:0.4f}'.format(accuracy_dmc) + ' | OIC Accuracy {:0.4f}'.format(accuracy_oic))
 
 def print_important_params():
 

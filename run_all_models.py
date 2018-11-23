@@ -3,7 +3,7 @@ from parameters import *
 import model
 import sys
 
-task_list = ['OIC']
+task_list = ['OICDelay']
 #task_list = ['spatialDMS']
 
 for task in task_list:
