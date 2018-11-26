@@ -24,7 +24,7 @@ class Stimulus:
             trial_info = self.generate_distractor_trial()
         elif par['trial_type'] == 'OIC' or par['trial_type'] == 'OICDelay':
             trial_info = self.generate_oic_trial()
-        elif par['trial_type'] == 'DMC' or par['trial_type'] == 'DMCNoDelay':
+        elif par['trial_type'] == 'DMC' or par['trial_type'] == 'DMC_NoDelay':
             trial_info = self.generate_dmc_trial()
         elif par['trial_type'] == 'OICDMC':
             trial_info = self.generate_oicdmc_trial()
@@ -56,7 +56,7 @@ class Stimulus:
                       'test'            :  np.zeros((par['batch_train_size']),dtype=np.int8),
                       'rule'            :  np.zeros((par['batch_train_size']),dtype=np.int8),
                       'match'           :  np.zeros((par['batch_train_size']),dtype=np.int8),
-                      'task'            :  np.zeros((par['batch_train_size']),dtype=np.int8),
+                      'task'            :  np.ones((par['batch_train_size']),dtype=np.int8),
                       'neural_input'    :  np.random.normal(par['input_mean'], par['noise_in'], size=(par['n_input'], par['num_time_steps'], par['batch_train_size']))}
 
 
@@ -133,6 +133,7 @@ class Stimulus:
                 trial_info['neural_input'][:, fix_time_rng, t] += np.reshape(self.fix_tuning[:,0],(-1,1))
 
             # RULE CUE
+            rule=0
             if par['num_rules']> 1 and par['num_rule_tuned'] > 0:
                 trial_info['neural_input'][:, par['rule_time_rng'][0], t] += np.reshape(self.rule_tuning[:,rule],(-1,1))
 
@@ -219,6 +220,9 @@ class Stimulus:
             test_time_rng =  range(test_onset, par['num_time_steps'])
             fix_time_rng =  range(test_onset)
             trial_info['train_mask'][test_onset:test_onset+mask_duration, t] = 0
+            mask_time_rng = range(test_onset+par['test_time']//par['dt'],par['num_time_steps'])
+            trial_info['train_mask'][mask_time_rng, t] = 0
+
             """
             Calculate neural input based on sample, tests, fixation, rule, and probe
             """
@@ -230,6 +234,7 @@ class Stimulus:
                 trial_info['neural_input'][:, fix_time_rng, t] += np.reshape(self.fix_tuning[:,0],(-1,1))
 
             # RULE CUE
+            rule=1
             if par['num_rules']> 1 and par['num_rule_tuned'] > 0:
                 trial_info['neural_input'][:, par['rule_time_rng'][0], t] += np.reshape(self.rule_tuning[:,rule],(-1,1))
 

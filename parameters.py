@@ -11,13 +11,13 @@ Independent parameters
 
 par = {
     # Setup parameters
-    'save_dir'              : 'C:/Users/FREEDMAN_LAB/Documents/RNNs/intdmc_rnn-master/',
+    'save_dir'              : 'C:/Users/Krithika/Documents/Freedmanlab_reading list_papers/RNNs/intdmc_rnn_improvedcode/',
     'debug_model'           : False,
     'load_previous_model'   : False,
     'analyze_model'         : False,
 
     # Network configuration
-    'synapse_config'        : 'full',      # Full is 'std_stf'
+    'synapse_config'        : None,      # Full is 'std_stf'
     'exc_inh_prop'          : 0.8,       # Literature 0.8, for EI off 1
     'var_delay'             : False,
 
@@ -51,7 +51,7 @@ par = {
 
     # Cost parameters
     'spike_regularization'  : 'L2', # 'L1' or 'L2'
-    'spike_cost'            : 2e-2,
+    'spike_cost'            : 2e-3, #higher, lower means 10-3
     'weight_cost'           : 0.,
 
     # Synaptic plasticity specs
@@ -249,6 +249,15 @@ def update_trial_params():
         par['test_time'] = 300
         par['pad_time'] =1500-par['delay_time']
 
+    elif par['trial_type'] == 'DMC_NoDelay':
+        par['num_rules'] = 1
+        par['num_rule_tuned'] = 12
+        par['sample_time'] = 650
+        par['delay_time'] = 0
+        par['test_time'] = 650
+        par['rule_onset_time'] = [par['dead_time']]
+        par['rule_offset_time'] = [par['dead_time']+par['fix_time']+par['sample_time'] + par['delay_time'] + par['test_time']]
+
     elif par['trial_type'] == 'OICDMC':
         par['num_rules'] = 2
         par['num_rule_tuned'] = 12
@@ -405,6 +414,9 @@ def update_dependencies():
         par['synapse_type'] = ['depressing' if par['EI_list'][i]==1  and i%2==0 else 'static' for i in range(par['n_hidden'])]
     elif par['synapse_config'] == 'depressing':
         par['synapse_type'] = ['depressing' for i in range(par['n_hidden'])]
+    else:
+        par['synapse_type'] = ['static' for i in range(par['n_hidden'])]
+
 
     for i in range(par['n_hidden']):
         if par['synapse_type'][i] == 'facilitating':

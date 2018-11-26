@@ -1402,7 +1402,6 @@ def get_perf_oicdmc(y, y_hat, mask, task):
         eod=(par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time'])//par['dt']
         eot=(par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time']+par['test_time'])//par['dt']
         dmc_mask[eod:eot,:]=1
-        import pdb; pdb.set_trace()
         mask_dmc *= dmc_mask
 
         y_dmc = np.argmax(y_stacked_dmc[0:2,:,:],axis=0)
@@ -1417,7 +1416,7 @@ def get_perf_oicdmc(y, y_hat, mask, task):
         y_hat_stacked_oic=y_hat_stacked_oiclist[:,:,np.squeeze(int_trials)]
         y_stacked_oic=y[:,:,np.squeeze(int_trials)]
         mask_oic=mask[:,np.squeeze(int_trials)]
-        updates={'trial_type':'OICDelay'}
+        updates={'trial_type':'OIC'}
         update_parameters(updates)
 
         trial_length=par['num_time_steps']
@@ -1436,8 +1435,5 @@ def get_perf_oicdmc(y, y_hat, mask, task):
         accuracy_oic=0
 
     accuracy = np.nanmean(np.array([accuracy_oic, accuracy_dmc]))
-
-    updates={'trial_type':'OICDelay'}
-    update_parameters(updates)
 
     return accuracy, accuracy_dmc, accuracy_oic
