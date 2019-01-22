@@ -243,13 +243,14 @@ def main(gpu_id = None):
         # keep track of the model performance across training
         model_performance = {'accuracy': [], 'loss': [], 'perf_loss': [], 'spike_loss': [], 'weight_loss': [], 'trial': []}
 
-        task_list=['DMC','OIC']
+        #task_list=['DMC','OIC'] #for Sequential training of OIC and DMC
+        task_list=['OIC','DMC']
         for task in task_list:
 
             for i in range(par['num_iterations']):
 
+                save_fn = task + '.pkl'
                 # generate batch of batch_train_size
-                save_fn = task + 'seq' + '.pkl'
                 updates = {'trial_type': task, 'save_fn': save_fn}
                 update_parameters(updates)
                 trial_info = stim.generate_trial(set_rule = None)

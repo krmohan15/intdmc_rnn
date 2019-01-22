@@ -17,7 +17,7 @@ par = {
     'analyze_model'         : False,
 
     # Network configuration
-    'synapse_config'        : None,      # Full is 'std_stf'
+    'synapse_config'        : 'full',      # Full is 'std_stf'
     'exc_inh_prop'          : 0.8,       # Literature 0.8, for EI off 1
     'var_delay'             : False,
 
@@ -51,7 +51,7 @@ par = {
 
     # Cost parameters
     'spike_regularization'  : 'L2', # 'L1' or 'L2'
-    'spike_cost'            : 2e-3, #higher, lower means 10-3
+    'spike_cost'            : 1e-3, #higher, lower means 10-3
     'weight_cost'           : 0.,
 
     # Synaptic plasticity specs
@@ -92,7 +92,7 @@ par = {
     'suppress_analysis'     : False,
     'analyze_tuning'        : True,
     'decode_stability'      : False,
-    'save_trial_data'       : False,
+    'save_trial_data'       : True,
 
 }
 
@@ -221,7 +221,7 @@ def update_trial_params():
         par['num_receptive_fields'] = 1
 
     elif par['trial_type'] == 'DMC':
-        par['num_rules'] = 2
+        par['num_rules'] = 1
         par['num_rule_tuned'] = 12
         par['sample_time'] = 650
         par['delay_time'] = 1000
@@ -230,7 +230,7 @@ def update_trial_params():
         par['rule_offset_time'] = [par['dead_time']+par['fix_time']+par['sample_time'] + par['delay_time'] + par['test_time']]
 
     elif par['trial_type'] == 'OIC':
-        par['num_rules'] = 2
+        par['num_rules'] = 1
         par['num_rule_tuned'] = 12
         par['rule_onset_time'] = [par['dead_time']]
         par['rule_offset_time'] = [par['dead_time']+par['fix_time']+par['sample_time'] + par['delay_time'] + par['test_time']]
