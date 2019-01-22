@@ -11,13 +11,13 @@ Independent parameters
 
 par = {
     # Setup parameters
-    'save_dir'              : 'C:/Users/Krithika/Documents/Freedmanlab_reading list_papers/RNNs/intdmc_rnn_improvedcode/',
+    'save_dir'              : '/home/freedmanlab/Documents/intdmc_rnn_km/',
     'debug_model'           : False,
     'load_previous_model'   : False,
     'analyze_model'         : False,
 
     # Network configuration
-    'synapse_config'        : 'full',      # Full is 'std_stf'
+    'synapse_config'        : 'std_stf',      # Full is 'std_stf'
     'exc_inh_prop'          : 0.8,       # Literature 0.8, for EI off 1
     'var_delay'             : False,
 
@@ -30,12 +30,12 @@ par = {
 
     # Timings and rates
     'dt'                    : 10,
-    'learning_rate'         : 2e-2,
+    'learning_rate'         : 1e-2,
     'membrane_time_constant': 100,
     'connection_prob'       : 1,         # Usually 1
     'test_cost_multiplier'  : 1.,
     'rule_cue_multiplier'   : 1.,
-    'balance_EI'            : False,
+    'balance_EI'            : True,
     'weight_multiplier'     : 1.,
 
     # Variance values
@@ -51,7 +51,7 @@ par = {
 
     # Cost parameters
     'spike_regularization'  : 'L2', # 'L1' or 'L2'
-    'spike_cost'            : 1e-3, #higher, lower means 10-3
+    'spike_cost'            : 2e-3, #higher, lower means 10-3
     'weight_cost'           : 0.,
 
     # Synaptic plasticity specs
@@ -63,7 +63,7 @@ par = {
     # Training specs
     'batch_train_size'      : 256,
     'num_iterations'        : 2000,
-    'iters_between_outputs' : 10,
+    'iters_between_outputs' : 100,
 
     # Task specs
     'trial_type'            : 'DMS', # allowable types: DMS, DMRS45, DMRS90, DMRS180, DMC, DMS+DMRS, ABBA, ABCA, dualDMS
@@ -71,6 +71,7 @@ par = {
     'dead_time'             : 0,
     'fix_time'              : 500,
     'sample_time'           : 650,
+    'sample_time_oic'       : 500,
     'delay_time'            : 1000,
     'test_time'             : 650,
     'variable_delay_max'    : 300,
@@ -92,7 +93,7 @@ par = {
     'suppress_analysis'     : False,
     'analyze_tuning'        : True,
     'decode_stability'      : False,
-    'save_trial_data'       : True,
+    'save_trial_data'       : False,
 
 }
 
@@ -221,7 +222,7 @@ def update_trial_params():
         par['num_receptive_fields'] = 1
 
     elif par['trial_type'] == 'DMC':
-        par['num_rules'] = 1
+        par['num_rules'] = 2
         par['num_rule_tuned'] = 12
         par['sample_time'] = 650
         par['delay_time'] = 1000
@@ -230,7 +231,7 @@ def update_trial_params():
         par['rule_offset_time'] = [par['dead_time']+par['fix_time']+par['sample_time'] + par['delay_time'] + par['test_time']]
 
     elif par['trial_type'] == 'OIC':
-        par['num_rules'] = 1
+        par['num_rules'] = 2
         par['num_rule_tuned'] = 12
         par['rule_onset_time'] = [par['dead_time']]
         par['rule_offset_time'] = [par['dead_time']+par['fix_time']+par['sample_time'] + par['delay_time'] + par['test_time']]
@@ -261,6 +262,10 @@ def update_trial_params():
     elif par['trial_type'] == 'OICDMC':
         par['num_rules'] = 2
         par['num_rule_tuned'] = 12
+        par['sample_time_oic']=500
+        par['delay_time_oic']=0
+        par['test_time_oic']=300
+        par['pad_time_oic']=1500
         par['sample_time'] = 650
         par['delay_time'] = 1000
         par['test_time'] = 650
@@ -297,6 +302,7 @@ def update_dependencies():
 
     par['dead_time_rng'] = range(par['dead_time']//par['dt'])
     par['sample_time_rng'] = range((par['dead_time']+par['fix_time'])//par['dt'], (par['dead_time']+par['fix_time']+par['sample_time'])//par['dt'])
+    par['sample_time_rng_oic'] = range((par['dead_time']+par['fix_time'])//par['dt'], (par['dead_time']+par['fix_time']+par['sample_time_oic'])//par['dt'])
     par['rule_time_rng'] = [range(int(par['rule_onset_time'][n]/par['dt']), int(par['rule_offset_time'][n]/par['dt'])) for n in range(len(par['rule_onset_time']))]
 
 
