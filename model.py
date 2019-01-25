@@ -12,9 +12,6 @@ import time
 from parameters import *
 import os, sys
 
-# Match GPU IDs to nvidia-smi command
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-
 # Ignore "use compiled version of TensorFlow" errors
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 
@@ -158,7 +155,7 @@ class Model:
         """
         cross_entropy
         """
-        self.perf_loss = tf.reduce_mean(tf.stack([mask*tf.nn.softmax_cross_entropy_with_logits_v2(logits = y_hat, labels = desired_output, dim=0) \
+        self.perf_loss = tf.reduce_mean(tf.stack([mask*tf.nn.softmax_cross_entropy_with_logits(logits = y_hat, labels = desired_output, dim=0) \
                 for (y_hat, desired_output, mask) in zip(self.y_hat, self.target_data, self.mask)]))
 
 
@@ -203,7 +200,7 @@ class Model:
 
 
 def main(gpu_id = None):
-    gpu_id = sys.argv[1] if len(sys.argv) > 1 else None
+
     if gpu_id is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
 
@@ -238,7 +235,7 @@ def main(gpu_id = None):
     with tf.Session(config=config) as sess:
 
         device = '/cpu:0' if gpu_id is None else '/gpu:0'
-        with tf.device("/gpu:0"):
+        with tf.device(device):
             model = Model(x, y, mask)
 
         sess.run(tf.global_variables_initializer())
@@ -246,59 +243,59 @@ def main(gpu_id = None):
         # keep track of the model performance across training
         model_performance = {'accuracy': [], 'loss': [], 'perf_loss': [], 'spike_loss': [], 'weight_loss': [], 'trial': []}
 
-        #task_list=['DMC','OIC']
-        #for task in task_list:
+        #task_list=['DMC','OIC'] #for Sequential training of OIC and DMC
+        task_list=['OIC']
+        for task in task_list:
 
-        for i in range(par['num_iterations']):
+            for i in range(par['num_iterations']):
 
-            # generate batch of batch_train_size
-            task='OICDMC'
-            #save_fn = task + 'seq' + '.pkl'
-            #updates = {'trial_type': task, 'save_fn': save_fn}
-            updates = {'trial_type': task}
-            update_parameters(updates)
-            trial_info = stim.generate_trial(set_rule = None)
+                save_fn = task + '.pkl'
+                # generate batch of batch_train_size
+                updates = {'trial_type': task, 'save_fn': save_fn, }
+                update_parameters(updates)
+                trial_info = stim.generate_trial(set_rule = None)
+
+                """
+                Run the model
+                """
+                _, loss, perf_loss, spike_loss, weight_loss, y_hat, state_hist, syn_x_hist, syn_u_hist = \
+                    sess.run([model.train_op, model.loss, model.perf_loss, model.spike_loss, model.weight_loss, model.y_hat, \
+                    model.hidden_state_hist, model.syn_x_hist, model.syn_u_hist], {x: trial_info['neural_input'], \
+                    y: trial_info['desired_output'], mask: trial_info['train_mask']})
+
+                accuracy, accuracy_dmc, accuracy_oic = analysis.get_perf_oicdmc(trial_info['desired_output'], y_hat, trial_info['train_mask'],trial_info['task'])
+
+                updates = {'trial_type': task, 'save_fn': save_fn}
+                update_parameters(updates)
+                model_performance = append_model_performance(model_performance, accuracy, loss, perf_loss, spike_loss, weight_loss, (i+1)*N)
+
+                """
+                Save the network model and output model performance to screen
+                """
+                if i%par['iters_between_outputs']==0:
+                    print_results(i, N, perf_loss, spike_loss, weight_loss, state_hist, accuracy,accuracy_dmc,accuracy_oic)
+
 
             """
-            Run the model
+            Save model, analyze the network model and save the results - KM added 11/19/18 - remove once you can access data from analysis
             """
-            _, loss, perf_loss, spike_loss, weight_loss, y_hat, state_hist, syn_x_hist, syn_u_hist = \
-                sess.run([model.train_op, model.loss, model.perf_loss, model.spike_loss, model.weight_loss, model.y_hat, \
-                model.hidden_state_hist, model.syn_x_hist, model.syn_u_hist], {x: trial_info['neural_input'], \
-                y: trial_info['desired_output'], mask: trial_info['train_mask']})
-
-            accuracy, accuracy_dmc, accuracy_oic = analysis.get_perf_oicdmc(trial_info['desired_output'], y_hat, trial_info['train_mask'],trial_info['task'])
-            #updates = {'trial_type': task, 'save_fn': save_fn}
-            updates = {'trial_type': task}
-            update_parameters(updates)
-            model_performance = append_model_performance(model_performance, accuracy, loss, perf_loss, spike_loss, weight_loss, (i+1)*N)
-
-            """
-            Save the network model and output model performance to screen
-            """
-            if i%par['iters_between_outputs']==0:
-                print_results(i, N, perf_loss, spike_loss, weight_loss, state_hist, accuracy,accuracy_dmc,accuracy_oic)
-
-        """
-        Save model, analyze the network model and save the results - KM added 11/19/18 - remove once you can access data from analysis
-        """
-        h_stacked = np.stack(state_hist, axis=1)
-        trial_time = np.arange(0,h_stacked.shape[1]*par['dt'], par['dt'])
-        weights = eval_weights()
-        results = {}
-        results = {
-            'model_performance': model_performance,
-            'parameters': par,
-            'weights': weights,
-            'trial_time': trial_time}
-        results['h'] = state_hist
-        results['y_hat'] = np.array(y_hat)
-        results['trial_info'] = trial_info
-        results['syn_x'] = syn_x_hist
-        results['syn_u'] = syn_u_hist
-        save_fn = par['save_dir'] + par['save_fn']
-        pickle.dump(results, open(save_fn, 'wb'))
-        #save_results(model_performance)
+            h_stacked = np.stack(state_hist, axis=1)
+            trial_time = np.arange(0,h_stacked.shape[1]*par['dt'], par['dt'])
+            weights = eval_weights()
+            results = {}
+            results = {
+                'model_performance': model_performance,
+                'parameters': par,
+                'weights': weights,
+                'trial_time': trial_time}
+            results['h'] = state_hist
+            results['y_hat'] = np.array(y_hat)
+            results['trial_info'] = trial_info
+            results['syn_x'] = syn_x_hist
+            results['syn_u'] = syn_u_hist
+            save_fn = par['save_dir'] + par['save_fn']
+            pickle.dump(results, open(save_fn, 'wb'))
+            #save_results(model_performance)
 
 
 

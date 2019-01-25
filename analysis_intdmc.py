@@ -49,7 +49,7 @@ def generate_network_output(filename, savefile=None,update_params={}):
 
     update_parameters(results['parameters'])
     update_parameters(update_params)
-    update_parameters({'trial_type': 'DMC'})
+    update_parameters({'trial_type': 'OIC'})
 
     stim = stimulus.Stimulus()
     print('time step ', par['num_time_steps'])
@@ -1429,6 +1429,71 @@ def get_perf_oicdmc(y, y_hat, mask, task):
         y_stacked_dmc=y[:,:,np.squeeze(dmc_trials)]
         mask_dmc=mask[:,np.squeeze(dmc_trials)]
         updates={'trial_type':'DMC'}
+        update_parameters(updates)
+
+        trial_length=par['num_time_steps']
+        ntrials_dmc=np.shape(dmc_trials)[1]
+        dmc_mask=np.zeros((trial_length,ntrials_dmc),dtype=np.float32)
+
+        eod=(par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time'])//par['dt']
+        eot=(par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time']+par['test_time'])//par['dt']
+        dmc_mask[eod:eot,:]=1
+        mask_dmc *= dmc_mask
+
+        y_dmc = np.argmax(y_stacked_dmc[0:2,:,:],axis=0)
+        y_hat_dmc = np.argmax(y_hat_stacked_dmc[0:2,:,:],axis=0)
+        accuracy_dmc=np.sum(np.float32(y_dmc == y_hat_dmc)*np.squeeze(mask_dmc))/np.sum(mask_dmc)
+    else:
+        accuracy_dmc=0
+
+    #OIC accuracy
+    if len(int_trials[0]) != 0:
+        y_hat_stacked_oiclist=np.stack(y_hat,axis=1)
+        y_hat_stacked_oic=y_hat_stacked_oiclist[:,:,np.squeeze(int_trials)]
+        y_stacked_oic=y[:,:,np.squeeze(int_trials)]
+        mask_oic=mask[:,np.squeeze(int_trials)]
+        updates={'trial_type':'OIC'}
+        update_parameters(updates)
+
+        trial_length=par['num_time_steps']
+        ntrials_int=np.shape(int_trials)[1]
+        oic_mask=np.zeros((trial_length,ntrials_int),dtype=np.float32)
+
+        eod=(par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time'])//par['dt']
+        eot=(par['dead_time']+par['fix_time']+par['sample_time']+par['delay_time']+par['test_time'])//par['dt']
+        oic_mask[eod:eot,:]=1
+        mask_oic *= oic_mask
+
+        y_oic = np.argmax(y_stacked_oic[2:4,:,:],axis=0)
+        y_hat_oic = np.argmax(y_hat_stacked_oic[2:4,:,:],axis=0)
+        accuracy_oic=np.sum(np.float32(y_oic == y_hat_oic)*np.squeeze(mask_oic))/np.sum(mask_oic)
+    else:
+        accuracy_oic=0
+
+    accuracy = np.nanmean(np.array([accuracy_oic, accuracy_dmc]))
+
+    return accuracy, accuracy_dmc, accuracy_oic
+
+def get_perf_dmcnodelay(y, y_hat, mask, task):
+
+    """
+    Calculate task accuracy by comparing the actual network output to the desired output
+    only examine time points when test stimulus is on
+    in another words, when y[0,:,:] is not 0
+    y is the desired output
+    y_hat is the actual output
+    """
+
+    #DMC accuracy
+    dmc_trials=np.where(task==1)
+    int_trials=np.where(task==0)
+
+    if len(dmc_trials[0]) != 0:
+        y_hat_stacked_dmclist=np.stack(y_hat,axis=1)
+        y_hat_stacked_dmc=y_hat_stacked_dmclist[:,:,np.squeeze(dmc_trials)]
+        y_stacked_dmc=y[:,:,np.squeeze(dmc_trials)]
+        mask_dmc=mask[:,np.squeeze(dmc_trials)]
+        updates={'trial_type':'DMC_NoDelay'}
         update_parameters(updates)
 
         trial_length=par['num_time_steps']
