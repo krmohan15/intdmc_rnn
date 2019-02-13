@@ -310,8 +310,8 @@ class Stimulus:
                 """
                 Generate trial paramaters
                 """
-                updates={'trial_type':'OIC'}
-                update_parameters(updates)
+                #updates={'trial_type':'OIC'}
+                #update_parameters(updates)
                 sample_dir = np.random.randint(par['num_motion_dirs'])
                 sample_cat = np.floor(sample_dir/(par['num_motion_dirs']/2))
                 test_RF = np.random.choice([1,2]) if  par['trial_type'] == 'location_DMS' else 0
@@ -329,18 +329,18 @@ class Stimulus:
                     else:
                         catch = 1
                 else:
-                    test_onset = (par['dead_time']+par['fix_time']+par['sample_time'] + par['delay_time'])//par['dt']
+                    test_onset = (par['dead_time']+par['fix_time']+par['sample_time_oic'] + par['delay_time_oic'])//par['dt']
 
                 test_time_rng =  range(test_onset, par['num_time_steps'])
                 fix_time_rng =  range(test_onset)
-                mask_time_rng = range(test_onset+par['test_time']//par['dt'],par['num_time_steps'])
+                mask_time_rng = range(test_onset+par['test_time_oic']//par['dt'],par['num_time_steps'])
                 trial_info['train_mask'][test_onset:test_onset+mask_duration, t] = 0
                 trial_info['train_mask'][mask_time_rng, t] = 0
                 """
                 Calculate neural input based on sample, tests, fixation, rule, and probe
                 """
                 # SAMPLE stimulus
-                trial_info['neural_input'][:, par['sample_time_rng'], t] += np.reshape(self.motion_tuning[:, 0, sample_dir],(-1,1))
+                trial_info['neural_input'][:, par['sample_time_rng_oic'], t] += np.reshape(self.motion_tuning[:, 0, sample_dir],(-1,1))
 
                 # FIXATION cue
                 if par['num_fix_tuned'] > 0:
@@ -348,7 +348,7 @@ class Stimulus:
 
                 # RULE CUE
                 if par['num_rules']> 1 and par['num_rule_tuned'] > 0:
-                    trial_info['neural_input'][:, par['rule_time_rng'][0], t] += np.reshape(self.rule_tuning[:,rule],(-1,1))
+                    trial_info['neural_input'][:, par['rule_time_rng_oic'][0], t] += np.reshape(self.rule_tuning[:,rule],(-1,1))
 
                 """
                 Determine the desired network output response
@@ -378,8 +378,8 @@ class Stimulus:
                 #plt.show()
 
             elif tr_type==1:
-                updates={'trial_type':'DMC'}
-                update_parameters(updates)
+                #updates={'trial_type':'DMC'}
+                #update_parameters(updates)
                 """
                 Generate trial paramaters
                 """
@@ -467,17 +467,17 @@ class Stimulus:
                 trial_info['match'][t] = match
                 trial_info['task'][t] = tr_type
 
-        #plt.imshow(trial_info['desired_output'][:, :, t])
-        #plt.colorbar()
-        #plt.show()
+        plt.imshow(trial_info['desired_output'][:, :, t])
+        plt.colorbar()
+        plt.show()
 
-        #plt.imshow(trial_info['neural_input'][:, :, t])
-        #plt.colorbar()
-        #plt.show()
+        plt.imshow(trial_info['neural_input'][:, :, t])
+        plt.colorbar()
+        plt.show()
 
-        #plt.imshow(trial_info['train_mask'][:,:])
-        #plt.colorbar()
-        #plt.show()
+        plt.imshow(trial_info['train_mask'][:,:])
+        plt.colorbar()
+        plt.show()
 
         return trial_info
 
@@ -998,7 +998,6 @@ class Stimulus:
             for i in range(par['num_rules']):
                 if n%par['num_rules'] == i:
                     rule_tuning[par['num_motion_tuned']+par['num_fix_tuned']+n,i] = par['tuning_height']*par['rule_cue_multiplier']
-
 
         return motion_tuning, fix_tuning, rule_tuning
 

@@ -244,7 +244,7 @@ def main(gpu_id = None):
         model_performance = {'accuracy': [], 'loss': [], 'perf_loss': [], 'spike_loss': [], 'weight_loss': [], 'trial': []}
 
         #task_list=['DMC','OIC'] #for Sequential training of OIC and DMC
-        task_list=['OIC']
+        task_list=['OICDMC']
         for task in task_list:
 
             for i in range(par['num_iterations']):

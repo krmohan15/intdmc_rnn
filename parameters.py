@@ -17,7 +17,7 @@ par = {
     'analyze_model'         : False,
 
     # Network configuration
-    'synapse_config'        : 'full',      # Full is 'std_stf'
+    'synapse_config'        : 'None',      # Full is 'std_stf'
     'exc_inh_prop'          : 0.8,       # Literature 0.8, for EI off 1
     'var_delay'             : False,
 
@@ -71,8 +71,11 @@ par = {
     'dead_time'             : 0,
     'fix_time'              : 500,
     'sample_time'           : 650,
+    'sample_time_oic'       : 500,
     'delay_time'            : 1000,
+    'delay_time_oic'        : 0,
     'test_time'             : 650,
+    'test_time_oic'         : 300,
     'variable_delay_max'    : 300,
     'mask_duration'         : 50,  # duration of traing mask after test onset
     'catch_trial_pct'       : 0.0,
@@ -126,6 +129,7 @@ def update_trial_params():
     par['ABBA_delay' ] = 0
     par['rule_onset_time'] = [par['dead_time']]
     par['rule_offset_time'] = [par['dead_time']]
+    par['rule_offset_time_oic'] = [par['dead_time']]
 
     if par['trial_type'] == 'DMS':
         par['rotation_match'] = 0
@@ -261,12 +265,16 @@ def update_trial_params():
     elif par['trial_type'] == 'OICDMC':
         par['num_rules'] = 2
         par['num_rule_tuned'] = 12
+        par['sample_time_oic'] = 500
+        par['delay_time_oic']=0
+        par['test_time_oic']=300
+        par['pad_time_oic']=1500
         par['sample_time'] = 650
         par['delay_time'] = 1000
         par['test_time'] = 650
         par['rule_onset_time'] = [par['dead_time']]
         par['rule_offset_time'] = [par['dead_time']+par['fix_time']+par['sample_time'] + par['delay_time'] + par['test_time']]
-
+        par['rule_offset_time_oic'] = [par['dead_time']+par['fix_time']+par['sample_time_oic'] + par['delay_time_oic'] +par['test_time_oic']+par['pad_time_oic']]
 
     else:
         print(par['trial_type'], ' not a recognized trial type')
@@ -297,8 +305,10 @@ def update_dependencies():
 
     par['dead_time_rng'] = range(par['dead_time']//par['dt'])
     par['sample_time_rng'] = range((par['dead_time']+par['fix_time'])//par['dt'], (par['dead_time']+par['fix_time']+par['sample_time'])//par['dt'])
+    par['sample_time_rng_oic'] = range((par['dead_time']+par['fix_time'])//par['dt'], (par['dead_time']+par['fix_time']+par['sample_time_oic'])//par['dt'])
     par['rule_time_rng'] = [range(int(par['rule_onset_time'][n]/par['dt']), int(par['rule_offset_time'][n]/par['dt'])) for n in range(len(par['rule_onset_time']))]
-
+    par['rule_time_rng_oic']=[range(int(par['rule_onset_time'][n]/par['dt']), int(par['rule_offset_time_oic'][n]/par['dt'])) for n in range(len(par['rule_onset_time']))]
+    
 
     # Possible rules based on rule type values
     #par['possible_rules'] = [par['num_receptive_fields'], par['num_categorizations']]
